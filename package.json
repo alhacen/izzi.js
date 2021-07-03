@@ -1,0 +1,34 @@
+{
+  "name": "izzi",
+  "version": "1.0.0",
+  "description": "A lightweight JavaScript framework made for Lazy and Smart People",
+  "main": "src/index.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "gulp minify"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alhaqhassan/izzi.js.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/alhaqhassan/izzi.js/issues"
+  },
+  "homepage": "https://github.com/alhaqhassan/izzi.js#readme",
+  "devDependencies": {
+    "@babel/cli": "^7.14.5",
+    "@babel/core": "^7.14.6",
+    "@babel/plugin-proposal-optional-chaining": "^7.14.5",
+    "gulp": "^4.0.2",
+    "gulp-babel": "^8.0.0",
+    "gulp-uglify": "^3.0.2"
+  },
+  "dependencies": {
+    "gulp-rename": "^2.0.0"
+  }
+}
