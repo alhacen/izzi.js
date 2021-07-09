@@ -51,7 +51,20 @@ const linkData = (template, vars, obj, tagType, attributeType = null) =>{
         })
     })
 }
-
+const escapeHTML = (unsafe) => {
+    return unsafe
+         .replace(/&/g, "&amp;")
+         .replace(/</g, "&lt;")
+         .replace(/>/g, "&gt;")
+         .replace(/"/g, "&quot;")
+         .replace(/'/g, "&#039;");
+ }
+const unEscapedHTML = (elm) =>{
+    let p = document.createElement('textarea');
+    p.innerHTML = elm.innerHTML
+    window.a=p.defaultValue.trim()
+    return p.defaultValue.trim()
+}
 const initIzziTag = () =>{
     let bindVars
     izziNodes.map(iNode=>{
@@ -59,8 +72,7 @@ const initIzziTag = () =>{
         if(!bindVars)
             bindVars=[""]
         if(bindVars?.length){
-            console.log(iNode.textContent)
-            linkData(iNode.textContent, bindVars, iNode,  "izziTag")
+            linkData(unEscapedHTML(iNode), bindVars, iNode,  "izziTag")
         }
     })
 }
@@ -110,11 +122,19 @@ const useState = (defaultValue) =>{
 }
 const renderHTML = (izziKey) =>{
     izData.get(izziKey)?.map(izzi=>{
-        if(izzi.tagType==="magicTag" || izzi.tagType ==='izziTag'){
-            window.x=izzi
-            izzi.element.textContent = izzi.template()
+        let izziTemplate = izzi.template()
+        if(Array.isArray(izziTemplate))
+            izziTemplate=izziTemplate.join("")
+        else if(typeof(izziTemplate) === "object")
+            izziTemplate = JSON.stringify(izziTemplate)
+        else
+            izziTemplate = izziTemplate
+        if(izzi.tagType==="magicTag"){
+            izzi.element.textContent = izziTemplate
+        }else if(izzi.tagType ==='izziTag'){
+            izzi.element.innerHTML = izziTemplate
         }else if(izzi.tagType === "magicTagAttribute"){
-            izzi.attributeType === 'value' ? izzi.element.value = izzi.template() : izzi.element.setAttribute(izzi.attributeType, izzi.template())
+            izzi.attributeType === 'value' ? izzi.element.value = izziTemplate : izzi.element.setAttribute(izzi.attributeType, izziTemplate)
         }
     })
 }
@@ -132,6 +152,6 @@ const render = (izziKey = null) =>{
 const init = async (id) =>{
     loop(document.getElementById(id));
     initMagicTag();
-    // initIzziTag()
+    initIzziTag()
     render()
 }
