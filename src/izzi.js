@@ -1,109 +1,149 @@
 "use strict";
-
-var allNodes=[]
-var izziNodes = []
-const izData = new Map();
-const setStateTostateMap = new Map();
-const loop = (node) => {
-    var nodes = node.childNodes;    
-    for (var i = 0; i <nodes.length; i++){
-        if(!nodes[i]){
-            continue;
-        }
-        if(nodes[i].nodeName === "IZZI"){
-            izziNodes.push(nodes[i])
-            continue;
-        }
-        if(nodes[i].childNodes.length > 0){
-            loop(nodes[i]);
-        }
-        allNodes.push(nodes[i])
+class izzi{
+    allNodes=[]
+    izziNodes = []
+    iCompNodes = [] 
+    constructor(izData, props){
+        this.izData = izData
+        this.props = props
     }
-}
-function parseVar(str) {
-  var re = /\{\{(.*?)\}\}/g;
-  var results = []
-  var match = re.exec(str);
-  while (match != null) {
-    results.push(match[1])
-    match = re.exec(str);
-  }
-  return results
-}
-const linkData = (template, vars, obj, tagType, attributeType = null) =>{
-    let isState, key,izziReturn,attributeValue;
-    vars.map(v=>{
-        template = template.replaceAll(`{{${v}}}`,'${'+v+'}')
-    })
-    vars.map(v=>{
-        isState = new Function(`return ${v.substr(0,v.indexOf("."))}`)();
-        if(isState?.type !== 'izziState'){
-            isState = new Function(`return ${v}`)()
-        }
-        key = isState?.type === 'izziState'?isState.id:v
-        if(!izData.get(key))
-            izData.set(key,[])
-        izData.get(key).push({
-            element: obj, 
-            tagType: tagType,
-            ...(attributeType&& {attributeType: attributeType}),
-            template: tagType === 'izziTag'?new Function('return ()=>{return ' + template.trim() + '}')():new Function('return ()=>{return `' + template + '`}')()
-        })
-    })
-}
-const escapeHTML = (unsafe) => {
-    return unsafe
-         .replace(/&/g, "&amp;")
-         .replace(/</g, "&lt;")
-         .replace(/>/g, "&gt;")
-         .replace(/"/g, "&quot;")
-         .replace(/'/g, "&#039;");
- }
-const unEscapedHTML = (elm) =>{
-    let p = document.createElement('textarea');
-    p.innerHTML = elm.innerHTML
-    window.a=p.defaultValue.trim()
-    return p.defaultValue.trim()
-}
-const initIzziTag = () =>{
-    let bindVars
-    izziNodes.map(iNode=>{
-        bindVars = iNode.getAttribute("bind")?.split(",");
-        if(!bindVars)
-            bindVars=[""]
-        if(bindVars?.length){
-            linkData(unEscapedHTML(iNode), bindVars, iNode,  "izziTag")
-        }
-    })
-}
-
-const initMagicTag = () =>{
-    let vars;
-    allNodes.map(n=>{
-        if(n.data){
-            let template;
-            template = n.data
-            template = template.replace(/\s+/g, ' ')
-            vars = parseVar(template)
-            if(vars.length){
-                linkData(template, vars, n,  "magicTag")
+    loop = (node) => {
+        var nodes = node.childNodes;    
+        for (var i = 0; i <nodes.length; i++){
+            if(!nodes[i]){
+                continue;
             }
-        }
-        if(n.attributes){
-            for(let i=0;i< n.attributes.length; i++){
-                let template, attributeType;
-                template = n.attributes[i].value
+            if(nodes[i].nodeName === "IZZI"){
+                this.izziNodes.push(nodes[i])
+                continue;
+            }else if(nodes[i].nodeName === "ICOMP"){
+                this.iCompNodes.push(nodes[i])
+                continue;
+            }
+            if(nodes[i].childNodes.length > 0){
+                this.loop(nodes[i]);
+            }
+            this.allNodes.push({ nodeName: nodes[i].nodeName, node: nodes[i] })
+        }      
+
+    }
+    parseVar(str) {
+    var re = /\{\{(.*?)\}\}/g;
+    var results = []
+    var match = re.exec(str);
+    while (match != null) {
+        results.push(match[1])
+        match = re.exec(str);
+    }
+    return results
+    }
+    linkData = (template, vars, obj, tagType, attributeType = null) =>{
+        let isState, key,izziReturn,attributeValue;
+        vars.map(v=>{
+            template = template.replaceAll(`{{${v}}}`,'${'+v+'}')
+            console.log(template)
+        })
+        vars.map(v=>{
+            isState = new Function('props',`return ${v.substr(0,v.indexOf("."))}`)(this.props);
+            if(isState?.type !== 'izziState'){
+                isState = new Function('props',`return ${v}`)(this.props)
+            }
+            key = isState?.type === 'izziState'?isState.id:v
+            if(!this.izData.get(key))
+                this.izData.set(key,[])
+            this.izData.get(key).push({
+                element: obj, 
+                tagType: tagType,
+                ...(attributeType&& {attributeType: attributeType}),
+                template: tagType === 'izziTag'?new Function('props','return ()=>{return ' + template.trim() + '}')(this.props):new Function('props','return ()=>{return `' + template + '`}')(this.props)
+            })
+        })
+    }
+    escapeHTML = (unsafe) => {
+        return unsafe
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+    unEscapedHTML = (elm) =>{
+        let p = document.createElement('textarea');
+        p.innerHTML = elm.innerHTML
+        window.a=p.defaultValue.trim()
+        return p.defaultValue.trim()
+    }
+    initIzziTag = () =>{
+        let bindVars
+        this.izziNodes.map(iNode=>{
+            bindVars = iNode.getAttribute("bind")?.split(",");
+            if(!bindVars)
+                bindVars=[""]
+            if(bindVars?.length){
+                this.linkData(this.unEscapedHTML(iNode), bindVars, iNode,  "izziTag")
+            }
+        })
+    }
+
+    initMagicTag = () =>{
+        let vars;
+        this.allNodes.map(nodeObj=>{
+            let n = nodeObj.node
+            if(n.data){
+                let template;
+                template = n.data
                 template = template.replace(/\s+/g, ' ')
-                attributeType = n.attributes[i].name
-                vars = parseVar(n.attributes[i].value)
+                vars = this.parseVar(template)
                 if(vars.length){
-                    linkData(template, vars, n,  "magicTagAttribute", attributeType)
+                    this.linkData(template, vars, n,  "magicTag")
                 }
             }
-        }
-    })
-}
+            if(n.attributes){
+                for(let i=0;i< n.attributes.length; i++){
+                    let template, attributeType;
+                    template = n.attributes[i].value
+                    template = template.replace(/\s+/g, ' ')
+                    attributeType = n.attributes[i].name
+                    vars = this.parseVar(n.attributes[i].value)
+                    if(vars.length){
+                        this.linkData(template, vars, n,  "magicTagAttribute", attributeType)
+                    }
+                }
+            }
+        })
+    }
+    getAllAttributes = el => el
+    .getAttributeNames()
+    .reduce((obj, name) => ({
+        ...obj,
+        [name]: el.getAttribute(name)
+    }), {})
+    initIcomp = () =>{
+        this.iCompNodes.map(iComp=>{
+            iComp.style.display="none";
+            let compName = iComp.getAttribute("name")
+            let components = document.querySelectorAll(compName);
+            [...components].map(x=>{
+                // console.log(Array.prototype.slice.call(x.attributes))          
+                let children = {children: x.innerHTML}
+                x.innerHTML = iComp.innerHTML
+                let xx = {...this.getAllAttributes(x), ...children}
+                Object.keys(xx).map(y=>{
+                    console.log(xx[y])
+                    let template = xx[y].replace(/\s+/g, ' ')
+                    let vars = this.parseVar(template)
+                    this.linkData(template, vars, x,  "magicProps")
+                })
+                init(x, {...this.getAllAttributes(x), ...children})
+            })
+        })
+    }
+    
 
+}
+const setStateTostateMap = new Map();
+const izData = new Map();
+    
 const useState = (defaultValue) =>{
     let newState = {
         type:'izziState',
@@ -139,7 +179,6 @@ const renderHTML = (izziKey) =>{
     })
 }
 const render = (izziKey = null) =>{
-    console.log(izziKey)
     if(izziKey === null){
         [...izData.keys()].map(key=>{
             renderHTML(key)
@@ -147,11 +186,37 @@ const render = (izziKey = null) =>{
     }else{
         renderHTML(izziKey)
     }
-
 }
-const init = async (id) =>{
-    loop(document.getElementById(id));
-    initMagicTag();
-    initIzziTag()
+const init = async (elm, props) =>{
+    let z = new izzi(izData, props)
+    window.z = z
+    z.loop(elm);
+    z.initMagicTag();
+    z.initIzziTag()
+    z.initIcomp()
     render()
 }
+
+/*
+x=[],y=[],z=[]
+myNodes={}
+function _loop(node, tmp) {
+    var nodes = node.childNodes;
+    
+    for (var i = 0; i <nodes.length; i++){ 
+    let tempObj = {}
+        if(!nodes[i]){
+            continue;
+        }
+        tempObj.nondeName = nodes[i].nodeName
+        tempObj.node = nodes[i]
+        if(nodes[i].childNodes.length > 0){
+            tempObj.child = []
+            _loop(nodes[i],tempObj.child);
+        }
+                
+        tmp.push(tempObj)        
+    }
+}
+_loop(izziNodes[0],x)
+*/
