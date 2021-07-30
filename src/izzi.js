@@ -5,7 +5,11 @@ class izzi{
     iCompNodes = [] 
     constructor(izData, props){
         this.izData = izData
-        this.props = props
+        if(props){
+            this.compName = props.compName
+            this.props = props.props
+            console.log(this.compName,this.props)
+        }
     }
     loop = (node) => {
         var nodes = node.childNodes;    
@@ -25,7 +29,6 @@ class izzi{
             }
             this.allNodes.push({ nodeName: nodes[i].nodeName, node: nodes[i] })
         }      
-
     }
     parseVar(str) {
     var re = /\{\{(.*?)\}\}/g;
@@ -38,10 +41,9 @@ class izzi{
     return results
     }
     linkData = (template, vars, obj, tagType, attributeType = null) =>{
-        let isState, key,izziReturn,attributeValue;
+        let isState, key;
         vars.map(v=>{
             template = template.replaceAll(`{{${v}}}`,'${'+v+'}')
-            console.log(template)
         })
         vars.map(v=>{
             isState = new Function('props',`return ${v.substr(0,v.indexOf("."))}`)(this.props);
@@ -49,6 +51,10 @@ class izzi{
                 isState = new Function('props',`return ${v}`)(this.props)
             }
             key = isState?.type === 'izziState'?isState.id:v
+            if(v.substr(0,6)==='props.'){
+                console.log(template)
+                key = `${this.compName}.${v.substr(6)}`
+            }
             if(!this.izData.get(key))
                 this.izData.set(key,[])
             this.izData.get(key).push({
@@ -124,17 +130,15 @@ class izzi{
             let compName = iComp.getAttribute("name")
             let components = document.querySelectorAll(compName);
             [...components].map(x=>{
-                // console.log(Array.prototype.slice.call(x.attributes))          
                 let children = {children: x.innerHTML}
                 x.innerHTML = iComp.innerHTML
-                let xx = {...this.getAllAttributes(x), ...children}
-                Object.keys(xx).map(y=>{
-                    console.log(xx[y])
-                    let template = xx[y].replace(/\s+/g, ' ')
+                let props = {...this.getAllAttributes(x), ...children}
+                Object.keys(props).map(y=>{
+                    let template = props[y].replace(/\s+/g, ' ')
                     let vars = this.parseVar(template)
                     this.linkData(template, vars, x,  "magicProps")
                 })
-                init(x, {...this.getAllAttributes(x), ...children})
+                init(x, {compName: compName,props:{...this.getAllAttributes(x), ...children}})
             })
         })
     }
@@ -196,27 +200,3 @@ const init = async (elm, props) =>{
     z.initIcomp()
     render()
 }
-
-/*
-x=[],y=[],z=[]
-myNodes={}
-function _loop(node, tmp) {
-    var nodes = node.childNodes;
-    
-    for (var i = 0; i <nodes.length; i++){ 
-    let tempObj = {}
-        if(!nodes[i]){
-            continue;
-        }
-        tempObj.nondeName = nodes[i].nodeName
-        tempObj.node = nodes[i]
-        if(nodes[i].childNodes.length > 0){
-            tempObj.child = []
-            _loop(nodes[i],tempObj.child);
-        }
-                
-        tmp.push(tempObj)        
-    }
-}
-_loop(izziNodes[0],x)
-*/

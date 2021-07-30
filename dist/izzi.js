@@ -1,203 +1,184 @@
 "use strict";
 
-var allNodes = [];
-const objToRendererMap = new Map();
-const varToAttributesMap = new Map();
-const varToObjectMap = new Map();
-const AttributesToObjectMap = new Map();
-const setStateTostateMap = new Map();
-const stateToObjectMap = new Map();
-const magicTagToscriptMap = new Map();
-const stateToMagicTagMap = new Map();
-const varToMagicTagMap = new Map();
-const stateToAttributeMap = new Map();
+class izzi {
+  allNodes = [];
+  izziNodes = [];
+  iCompNodes = [];
 
-const escapeHTML = unsafeText => {
-  let div = document.createElement('div');
-  div.innerText = unsafeText;
-  return div.innerHTML;
-};
+  constructor(izData, props) {
+    this.izData = izData;
 
-function escapeHTMLWrapper(unsafeText) {
-  var re = /\${(.*?)\}/g;
-  var results = [];
-  var match = re.exec(unsafeText);
-
-  while (match != null) {
-    results.push(match[1]);
-    match = re.exec(unsafeText);
+    if (props) {
+      this.compName = props.compName;
+      this.props = props.props;
+      console.log(this.compName, this.props);
+    }
   }
 
-  results.map(r => {
-    unsafeText = unsafeText.replaceAll(`\${${r}}`, '${escapeHTML(' + r + ')}'); // console.log(unsafeText)
-  });
-  return unsafeText;
-}
+  loop = node => {
+    var nodes = node.childNodes;
 
-const inputToEvetntMap = new Map();
-
-const loop = node => {
-  // do some thing with the node here
-  var nodes = node.childNodes;
-
-  for (var i = 0; i < nodes.length; i++) {
-    if (!nodes[i]) {
-      continue;
-    }
-
-    if (nodes[i].nodeName === "IZZI") continue;
-
-    if (nodes[i].nodeName === "INPUT") {
-      let iEvent = nodes[i].getAttribute("iChange");
-
-      if (iEvent) {
-        if (!inputToEvetntMap.get(nodes[i])) inputToEvetntMap.set(nodes[i], []);
-        inputToEvetntMap.get(nodes[i]).push(iEvent);
+    for (var i = 0; i < nodes.length; i++) {
+      if (!nodes[i]) {
+        continue;
       }
+
+      if (nodes[i].nodeName === "IZZI") {
+        this.izziNodes.push(nodes[i]);
+        continue;
+      } else if (nodes[i].nodeName === "ICOMP") {
+        this.iCompNodes.push(nodes[i]);
+        continue;
+      }
+
+      if (nodes[i].childNodes.length > 0) {
+        this.loop(nodes[i]);
+      }
+
+      this.allNodes.push({
+        nodeName: nodes[i].nodeName,
+        node: nodes[i]
+      });
+    }
+  };
+
+  parseVar(str) {
+    var re = /\{\{(.*?)\}\}/g;
+    var results = [];
+    var match = re.exec(str);
+
+    while (match != null) {
+      results.push(match[1]);
+      match = re.exec(str);
     }
 
-    if (nodes[i].childNodes.length > 0) {
-      loop(nodes[i]);
-    }
-
-    allNodes.push(nodes[i]);
+    return results;
   }
-};
 
-function parseVar(str) {
-  var re = /\{\{(.*?)\}\}/g;
-  var results = [];
-  var match = re.exec(str);
+  linkData = (template, vars, obj, tagType, attributeType = null) => {
+    let isState, key;
+    vars.map(v => {
+      template = template.replaceAll(`{{${v}}}`, '${' + v + '}');
+    });
+    vars.map(v => {
+      isState = new Function('props', `return ${v.substr(0, v.indexOf("."))}`)(this.props);
 
-  while (match != null) {
-    // matched text: match[0]
-    // match start: match.index
-    // capturing group n: match[n]
-    results.push(match[1]);
-    match = re.exec(str);
-  } //   console.log(results)
+      if (isState?.type !== 'izziState') {
+        isState = new Function('props', `return ${v}`)(this.props);
+      }
 
+      key = isState?.type === 'izziState' ? isState.id : v;
 
-  return results;
-}
+      if (v.substr(0, 6) === 'props.') {
+        console.log(template);
+        key = `${this.compName}.${v.substr(6)}`;
+      }
 
-const initAttributes = () => {
-  let vars;
-  let attributeValue;
-  allNodes.map(n => {
-    if (n.attributes) {
-      for (let i = 0; i < n.attributes.length; i++) {
-        attributeValue = n.attributes[i].value;
-        vars = parseVar(n.attributes[i].value);
+      if (!this.izData.get(key)) this.izData.set(key, []);
+      this.izData.get(key).push({
+        element: obj,
+        tagType: tagType,
+        ...(attributeType && {
+          attributeType: attributeType
+        }),
+        template: tagType === 'izziTag' ? new Function('props', 'return ()=>{return ' + template.trim() + '}')(this.props) : new Function('props', 'return ()=>{return `' + template + '`}')(this.props)
+      });
+    });
+  };
+  escapeHTML = unsafe => {
+    return unsafe.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+  };
+  unEscapedHTML = elm => {
+    let p = document.createElement('textarea');
+    p.innerHTML = elm.innerHTML;
+    window.a = p.defaultValue.trim();
+    return p.defaultValue.trim();
+  };
+  initIzziTag = () => {
+    let bindVars;
+    this.izziNodes.map(iNode => {
+      bindVars = iNode.getAttribute("bind")?.split(",");
+      if (!bindVars) bindVars = [""];
+
+      if (bindVars?.length) {
+        this.linkData(this.unEscapedHTML(iNode), bindVars, iNode, "izziTag");
+      }
+    });
+  };
+  initMagicTag = () => {
+    let vars;
+    this.allNodes.map(nodeObj => {
+      let n = nodeObj.node;
+
+      if (n.data) {
+        let template;
+        template = n.data;
+        template = template.replace(/\s+/g, ' ');
+        vars = this.parseVar(template);
 
         if (vars.length) {
-          vars.map(v => {
-            let state = new Function(`return ${v.substr(0, v.indexOf("."))}`)();
-            attributeValue = attributeValue.replaceAll(`{{${v}}}`, '${' + v + '}');
-
-            if (!stateToAttributeMap.get(state?.id)?.includes(n) && !varToAttributesMap.get(v)?.includes(n)) {
-              if (state?.type === "state") {
-                if (!stateToAttributeMap.get(state.id)) stateToAttributeMap.set(state.id, []);
-                stateToAttributeMap.get(state.id).push({
-                  object: n,
-                  attribute: n.attributes[i].name,
-                  renderer: new Function('return ()=>{return `' + attributeValue + '`}')()
-                });
-              } else {
-                if (!varToAttributesMap.get(v)) varToAttributesMap.set(v, []);
-                varToAttributesMap.get(v).push({
-                  object: n,
-                  attribute: n.attributes[i].name,
-                  renderer: new Function('return ()=>{return `' + attributeValue + '`}')()
-                });
-              }
-            }
-          });
+          this.linkData(template, vars, n, "magicTag");
         }
       }
-    }
-  });
-};
 
-const initInnerText = () => {
-  let vars;
-  let innerText;
-  allNodes.map(n => {
-    if (n.data) {
-      innerText = n.data;
-      innerText = innerText.replace(/\s+/g, ' ');
-      vars = parseVar(innerText);
+      if (n.attributes) {
+        for (let i = 0; i < n.attributes.length; i++) {
+          let template, attributeType;
+          template = n.attributes[i].value;
+          template = template.replace(/\s+/g, ' ');
+          attributeType = n.attributes[i].name;
+          vars = this.parseVar(n.attributes[i].value);
 
-      if (vars.length) {
-        vars.map(v => {
-          let state = new Function(`return ${v.substr(0, v.indexOf("."))}`)();
-
-          if (!stateToObjectMap.get(state?.id)?.includes(n) && !varToObjectMap.get(v)?.includes(n)) {
-            if (state?.type === "state") {
-              if (!stateToObjectMap.get(state.id)) stateToObjectMap.set(state.id, []);
-              stateToObjectMap.get(state.id).push(n);
-            } else {
-              if (!varToObjectMap.get(v)) varToObjectMap.set(v, []);
-              varToObjectMap.get(v).push(n);
-            }
+          if (vars.length) {
+            this.linkData(template, vars, n, "magicTagAttribute", attributeType);
           }
-
-          innerText = innerText.replaceAll(`{{${v}}}`, '${' + v + '}');
-        });
-        window.y = innerText;
-        objToRendererMap.set(n, new Function('return { render :()=>{return `' + innerText + '`}}')());
+        }
       }
-    }
-  });
-};
-
-const render = () => {
-  [...objToRendererMap.keys()].map(elm => {
-    elm.data = objToRendererMap.get(elm).render();
-  });
-  [...stateToAttributeMap.values()].map(obj => {
-    obj.map(elm => {
-      elm.attribute === "value" ? elm.object.value = elm.renderer() : elm.object.setAttribute(elm.attribute, elm.renderer());
     });
-  });
-  [...varToAttributesMap.values()].map(obj => {
-    obj.map(elm => {
-      elm.attribute === "value" ? elm.object.value = elm.renderer() : elm.object.setAttribute(elm.attribute, elm.renderer());
+  };
+  getAllAttributes = el => el.getAttributeNames().reduce((obj, name) => ({ ...obj,
+    [name]: el.getAttribute(name)
+  }), {});
+  initIcomp = () => {
+    this.iCompNodes.map(iComp => {
+      iComp.style.display = "none";
+      let compName = iComp.getAttribute("name");
+      let components = document.querySelectorAll(compName);
+      [...components].map(x => {
+        let children = {
+          children: x.innerHTML
+        };
+        x.innerHTML = iComp.innerHTML;
+        let props = { ...this.getAllAttributes(x),
+          ...children
+        };
+        Object.keys(props).map(y => {
+          let template = props[y].replace(/\s+/g, ' ');
+          let vars = this.parseVar(template);
+          this.linkData(template, vars, x, "magicProps");
+        });
+        init(x, {
+          compName: compName,
+          props: { ...this.getAllAttributes(x),
+            ...children
+          }
+        });
+      });
     });
-  });
-};
+  };
+}
 
-const reRender = stateId => {
-  stateToObjectMap.get(stateId)?.map(elm => {
-    elm.data = objToRendererMap.get(elm).render();
-  });
-  stateToAttributeMap.get(stateId)?.map(elm => {
-    console.log(elm);
-    elm.attribute === "value" ? elm.object.value = elm.renderer() : elm.object.setAttribute(elm.attribute, elm.renderer());
-  });
-  stateToMagicTagMap.get(stateId)?.map(elm => {
-    let izziReturn;
-    izziReturn = magicTagToscriptMap.get(elm);
-    console.log(escapeHTMLWrapper(`return ${izziReturn.replaceAll("&gt;", ">").replaceAll("&lt;", "<").trim()}`));
-    izziReturn = new Function(escapeHTMLWrapper(`return ${izziReturn.replaceAll("&gt;", ">").replaceAll("&lt;", "<").trim()}`))();
-    console.log(izziReturn); // console.log(`return \`${izziCodeTemplate.replaceAll("&gt;",">").replaceAll("&lt;","<").trim()}\``)
-
-    if (izziReturn) {
-      if (Array.isArray(izziReturn)) elm.innerHTML = izziReturn.join("");else if (typeof izziReturn === "object") elm.innerHTML = JSON.stringify(izziReturn);else elm.innerHTML = escapeHTMLWrapper(izziReturn);
-    } else {
-      elm.innerHTML = "";
-    }
-  });
-};
+const setStateTostateMap = new Map();
+const izData = new Map();
 
 const useState = defaultValue => {
   let newState = {
-    type: 'state',
+    type: 'izziState',
     id: setStateTostateMap.size,
     state: defaultValue,
     set: newValue => {
       newState.state = newValue;
-      reRender(newState.id);
+      render(newState.id);
     },
     get: () => {
       return newState.state;
@@ -207,51 +188,37 @@ const useState = defaultValue => {
   return newState;
 };
 
-const initMagicTag = () => {
-  let allIzzis = document.getElementsByTagName("IZZI");
-  let vars;
-  let izziCodeTemplate;
-  let izziReturn;
+const renderHTML = izziKey => {
+  izData.get(izziKey)?.map(izzi => {
+    let izziTemplate = izzi.template();
+    if (Array.isArray(izziTemplate)) izziTemplate = izziTemplate.join("");else if (typeof izziTemplate === "object") izziTemplate = JSON.stringify(izziTemplate);else izziTemplate = izziTemplate;
 
-  for (let i = 0; i < allIzzis.length; i++) {
-    izziCodeTemplate = allIzzis[i].innerHTML;
-    vars = parseVar(izziCodeTemplate);
-
-    if (vars.length) {
-      vars.map(v => {
-        let state = new Function(`return ${v.substr(0, v.indexOf("."))}`)();
-
-        if (!stateToMagicTagMap.get(state?.id)?.includes(allIzzis[i]) && !varToMagicTagMap.get(v)?.includes(allIzzis[i])) {
-          if (state?.type === "state") {
-            if (!stateToMagicTagMap.get(state.id)) stateToMagicTagMap.set(state.id, []);
-            stateToMagicTagMap.get(state.id).push(allIzzis[i]);
-          } else {
-            if (!varToMagicTagMap.get(v)) varToMagicTagMap.set(v, []);
-            varToMagicTagMap.get(v).push(allIzzis[i]);
-          }
-        }
-
-        izziCodeTemplate = izziCodeTemplate.replaceAll(`{{${v}}}`, v);
-      });
+    if (izzi.tagType === "magicTag") {
+      izzi.element.textContent = izziTemplate;
+    } else if (izzi.tagType === 'izziTag') {
+      izzi.element.innerHTML = izziTemplate;
+    } else if (izzi.tagType === "magicTagAttribute") {
+      izzi.attributeType === 'value' ? izzi.element.value = izziTemplate : izzi.element.setAttribute(izzi.attributeType, izziTemplate);
     }
+  });
+};
 
-    izziCodeTemplate = izziCodeTemplate.replaceAll("&gt;", ">").replaceAll("&lt;", "<").trim();
-    magicTagToscriptMap.set(allIzzis[i], izziCodeTemplate);
-    izziReturn = new Function(`return ${izziCodeTemplate}`)();
-    console.log(`return ${izziCodeTemplate.replaceAll("&gt;", ">").replaceAll("&lt;", "<").trim()}`); // console.log(`return \`${izziCodeTemplate.replaceAll("&gt;",">").replaceAll("&lt;","<").trim()}\``)
-
-    if (izziReturn) {
-      if (Array.isArray(izziReturn)) allIzzis[i].innerHTML = izziReturn.join("");else if (typeof izziReturn === "object") allIzzis[i].innerHTML = JSON.stringify(izziReturn);else allIzzis[i].innerHTML = izziReturn;
-    } else {
-      allIzzis[i].innerHTML = "";
-    }
+const render = (izziKey = null) => {
+  if (izziKey === null) {
+    [...izData.keys()].map(key => {
+      renderHTML(key);
+    });
+  } else {
+    renderHTML(izziKey);
   }
 };
 
-const init = async id => {
-  loop(document.getElementById(id));
-  initAttributes();
-  initInnerText();
-  initMagicTag();
+const init = async (elm, props) => {
+  let z = new izzi(izData, props);
+  window.z = z;
+  z.loop(elm);
+  z.initMagicTag();
+  z.initIzziTag();
+  z.initIcomp();
   render();
 };
