@@ -65,7 +65,7 @@ class izzi{
             })
         })
     }
-    escapeHTML = (unsafe) => {
+    static escapeHTML = (unsafe) => {
         return unsafe
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
