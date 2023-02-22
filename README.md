@@ -3,7 +3,7 @@ A lightweight JavaScript library for building user interfaces. inspired by react
 
 Izzi.js is a new way to build web applications. you don't need to compile it. its just a plug and play library.
 
-[Demo](https://alhaqhassan.github.io/izzi.js-doc/).
+[Demo](https://alhacen.github.io/izzi.js-doc/).
 ## TODO
 - [x] writing core
 - [x] input binding
@@ -25,4 +25,4 @@ Give a ⭐️ if this project helped you!
 
 # 🤝 Contributing
 
-Contributions, issues and feature requests are welcome! Feel free to check [issues page](https://github.com/alhaqhassan/izzi.js/issues).
+Contributions, issues and feature requests are welcome! Feel free to check [issues page](https://github.com/alhacen/izzi.js/issues).
